@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Timetracker</title>
+<style>
+.running{
+   background:red;
+}
+div#runnedtimes {
+    width: 100%;
+    max-height:15em;
+    overflow: scroll;
+}
+
+#runnedtimes > div {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 1px dotted grey;
+}
+div#weekoverview {
+    max-height: 20em;
+    overflow: scroll;
+}
+
+.week.good, .runningtime{
+   background:green;
+}
+
+.week, .runningtime.notrunning{
+    background:red;
+}
+span.en, span.es{
+  display:none;
+}
+body.en span.en,
+body.es span.es{
+  display: inline;
+}
+</style>
+<script>
+// Returns the ISO week of the date.
+Date.prototype.getWeek = function() {
+  var date = new Date(this.getTime());
+  date.setHours(0, 0, 0, 0);
+  // Thursday in current week decides the year.
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  // January 4 is always in week 1.
+  var week1 = new Date(date.getFullYear(), 0, 4);
+  // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000
+                        - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+
+function TimeEvent(starttime){
+    if(starttime)this.starttime = new Date(starttime); else this.starttime = new Date();
+    this.endtime= null;
+    this.runtime = 0;
+    this.runMinutes = 0;
+    this.runHours = 0;
+}
+
+TimeEvent.prototype.stop = function(stoptime){
+    if(stoptime)this.endtime = new Date(stoptime); else this.endtime = new Date();
+    this.runtime = this.endtime - this.starttime;
+    var minutes = this.runtime /60000;
+    this.runHours = Math.floor(minutes / 60);
+    this.runMinutes = Math.floor(minutes - (this.runHours*60));
+}
+
+function timestorage(config){
+    this.title = config.name;
+    this.events = new Array();
+    this.running = false;
+    this.runningEvent = null;
+    this.scheduledTimePerWeek = config.scheduledTimePerWeek || 20;
+    this.timeZoneChange = config.timeZoneChange || 0;
+}
+
+Date.prototype.dayOfWeek = function(){
+    var dow = ["Sun","Mon", "Tue","Wed","Thu","Fri","Sat"];
+    var dowes = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+    if(document.body.classList.contains('en'))return dow[this.getDay()];
+    else return dowes[this.getDay()];
+}
+
+timestorage.prototype.buildOverview = function(){
+    var output = "";
+    for(var x=this.events.length-1;x>=0;x--){
+        var runnedtime = (this.events[x].endtime - this.events[x].starttime)/60000;
+        if(runnedtime<0)runnedtime = (new Date().getTime() - this.events[x].starttime)/60000;
+        var hours = Math.floor(runnedtime / 60);
+        var minutes = Math.floor(runnedtime - (hours*60));
+        var rtime = hours+" h, "+minutes+" min";
+        var endstring = '<span class="en">still running</span><span class="es">aun corriendo</span>';
+        if(this.events[x].endtime) endstring = this.events[x].endtime.dayOfWeek()+" "+this.events[x].endtime.toLocaleString();
+        //if(minutes + (hours*60)>3)
+        output+='<div><span><span class="en">start:</span><span class="es">inicio:</span> '+this.events[x].starttime.dayOfWeek()+" "+this.events[x].starttime.toLocaleString() + '</span><span><span class="en">end:</span><span class="es">fin:</span> '+endstring + '</span><span><span class="en">runned time:</span><span class="es">tiempo corrido</span><span class="rtime"> '+rtime+'</span></span></div>';
+    }
+    document.getElementById("runnedtimes").innerHTML = output;
+}
+
+timestorage.prototype.thisWeek = function(){
+    var evs = new Array();
+    var actw = new Date().getWeek();
+    var acty = new Date().getFullYear();
+    for(var x=0;x<this.events.length;x++)if(this.events[x].starttime.getWeek()===actw && this.events[x].starttime.getFullYear() === acty)evs.push(this.events[x]);
+    var thisweektime = 0;
+    for(var x=0;x<evs.length;x++){
+        thisweektime+=evs[x].runtime;
+    }
+    thisweektime = Math.floor(thisweektime / 60000);
+    var hours = Math.floor(thisweektime / 60);
+    var minutes = Math.floor(thisweektime - (hours*60));
+    var rtime = hours+" h, "+minutes + " min";
+    var resttime = (this.scheduledTimePerWeek * 60) - thisweektime;
+    if(resttime>60) {
+        var resthours = Math.floor(resttime/60); var restmin = resttime - (resthours*60);
+        rtime+=' -> <span class="es">faltan </span>'+resthours+" h, "+restmin + ' min <span class="en">to go</span>';
+    }else if(resttime>0) rtime+=' -> <span class="es">faltan </span>'+resttime+' min <span class="en">to go</span>';
+    if(resttime<0) rtime+=' -> <span class="en">yet working in plus:</span><span class="es">ya trabajando arriba del gol:</span>' +resttime+" min";
+
+    document.getElementById("thisweek").innerHTML = rtime;
+}
+
+timestorage.prototype.allWeeks = function(){
+    var years = new Array();
+    var yearsmax = new Date().getFullYear();
+    var yearsmin = yearsmax;
+    for(var x=0;x<this.events.length;x++){
+        var fullyear = this.events[x].starttime.getFullYear();
+        if(fullyear<yearsmin)yearsmin=fullyear;
+        if(years[fullyear]===undefined)years[fullyear]=new Array();
+        years[fullyear].push(this.events[x]);
+    }
+    var resultstring = "";
+    console.log("yearmaxmin:"+yearsmax+","+yearsmin);
+    for(var ya=yearsmax;ya>=yearsmin;ya--){
+        console.log("durchlauf jahr"+ya);
+        console.log(years);
+        resultstring+="<div><h1>Year "+ya+"</h1>";
+        var weeks = new Array();
+        for(var x=0;x<years[ya].length;x++){
+            var actev = years[ya][x];
+            var actweek = actev.starttime.getWeek();
+            if(weeks[actweek]===undefined)weeks[actweek] = new Array();
+            weeks[actweek].push(actev);
+        }
+        for(var x=weeks.length-1;x>=0;x--){
+            if(weeks[x]===undefined)continue;
+            var weektime = 0;
+            var weekminimum = 0;
+            var weekmaximum = 0;
+            for(var y=0;y<weeks[x].length;y++){
+                if(weeks[x][y].endtime === null)continue;
+                weektime += weeks[x][y].endtime - weeks[x][y].starttime;
+                if(weekminimum===0||weeks[x][y].starttime < weekminimum)weekminimum = weeks[x][y].starttime;
+                if(weeks[x][y].starttime>weekmaximum)weekmaximum = weeks[x][y].starttime;
+            }
+            var weekminutes = Math.floor(weektime/60000);
+            var weekhours = Math.floor(weekminutes/60);
+            var weekstartdate = new Date(weekminimum);
+            var weekenddate = new Date(weekmaximum);
+            weekminutes = weekminutes - (weekhours*60);
+            var weekclass = "week";
+            if(weekhours>=this.scheduledTimePerWeek)weekclass = "week good";
+            resultstring+='<div class="'+weekclass+'"><span><span class="en">Week</span><span class="es">Semana</span> '+x+'('+weekstartdate.toLocaleDateString()+' - '+weekenddate.toLocaleDateString()+'):</span><span> '+weekhours+' <span class="en">hours</span><span class="es">horas</span>, '+weekminutes+" min</span></div>";
+        }
+    resultstring+="</div>";
+    console.log(ya+"\n"+resultstring);
+    }//end of year
+    document.getElementById("weekoverview").innerHTML = resultstring;
+}
+
+timestorage.prototype.sortEvents = function(){
+    this.events.sort(function(a,b){return a.starttime - b.starttime;});
+}
+
+var timetracker = {
+    projects: new Array(),
+    actproject:null
+}
+
+timetracker.init = function(config){
+    this.projects.push(new timestorage(config));
+    if(config.language=="es")languageswitch();
+    this.actproject = this.projects[this.projects.length-1];
+    // uncomment the following if you want to split your data into "archived" ones and fresh ones
+/*
+    var jsfile2 = document.createElement('script');
+		jsfile2.setAttribute("type","text/javascript");
+		jsfile2.setAttribute("src", "olddata.js");
+        jsfile2.onload = function(){timetracker.buildAll()};
+		document.getElementsByTagName("head")[0].appendChild(jsfile2);
+*/
+    var jsfile = document.createElement('script');
+		jsfile.setAttribute("type","text/javascript");
+		jsfile.setAttribute("src", this.actproject.title+".js");
+        jsfile.onload = function(){timetracker.buildAll()};
+		document.getElementsByTagName("head")[0].appendChild(jsfile);
+
+}
+
+timetracker.buildAll = function(){
+    this.actproject.sortEvents();
+    this.actproject.buildOverview();
+    this.actproject.thisWeek();
+    this.actproject.allWeeks();
+    this.acttime();
+    this.totaltime();
+}
+
+timetracker.acttime = function(){
+    document.getElementById("actruntitle").innerText=this.actproject.title;
+    var lastevent = this.actproject.events[this.actproject.events.length-1];
+    if(lastevent.endtime === null){
+        var acttimediv = document.getElementById("acttime");
+        acttimediv.classList.remove("notrunning");
+        var enddate = new Date();
+        var runtime = enddate - lastevent.starttime;
+        var minutes = Math.floor(runtime / 60000);
+        var hours = Math.floor(minutes/60);
+        minutes = minutes - (hours*60);
+        acttimediv.innerText = hours+"h, "+minutes+" min";
+
+        setTimeout("location.reload()",60000);
+    }
+}
+
+timetracker.totaltime = function(){
+  let totaltime = 0;
+  let events = this.actproject.events;
+  for (var x=0;x<events.length;x++){
+    totaltime+=events[x].runtime;
+  }
+  console.log(totaltime);
+  let minutes = Math.floor(totaltime / 60000);
+  let hours = Math.floor(minutes/60);
+  minutes = minutes - (hours*60);
+  tdiv = document.getElementById('totaltime');
+  tdiv.innerText = hours+"h, "+minutes+" min";
+}
+
+function init(){
+ //timetracker.init();
+ /*var sbutton = document.getElementById("startstop");
+   sbutton.onclick = function(){
+    timetracker.click();
+    if(this.classList.contains("running"))this.classList.remove("running");else this.classList.add("running");
+   }
+ */
+}
+
+function addStartTime(pythontime){
+    var jstime = Math.floor(pythontime * 1000);
+    console.log((jstime*0==0));
+    if(jstime*1!=jstime)jstime = new Date(pythontime) + timetracker.actproject.timeZoneChange;
+    //jstime = Math.floor(jstime / 60000);
+    timetracker.actproject.events.push(new TimeEvent(jstime));
+    console.log("added starttime from python:"+pythontime + "/"+jstime);
+}
+
+function addEndTime(pythontime){
+    var jstime = Math.floor(pythontime *1000);
+    if(jstime*1!=jstime)jstime = new Date(new Date(pythontime)+ timetracker.actproject.timeZoneChange);
+
+    timetracker.actproject.events[timetracker.actproject.events.length-1].stop(jstime)
+}
+
+function languageswitch(){
+  let newclass="es";
+  if(document.body.classList.contains(newclass)){
+    newclass="en";
+    document.getElementById('languagebutton').innerText='cambia a español';
+  }else{
+    document.getElementById('languagebutton').innerText='switch to english';
+  }
+  document.body.className=newclass;
+
+}
+
+</script>
+</head>
+<body onload="init()" class="en">
+  <button type="button" name="button" onclick="languageswitch()" id="languagebutton">cambia a español</button>
+  <h1><span class="en">Project </span> <span class="es">projecto </span></h1>
+<div id="projectoverview"></div>
+<h1 class="runningtime"> <span class="en">running project </span><span class="es">corriendo</span> <span id="actruntitle"></span>
+<span id="acttime" class="runningtime notrunning"><span class="en"> not running</span> <span class="es"> no </span></span></h1>
+<h2><span class="en">total runtime of project </span> <span class="es">tiempo total del projecto </span> <span id="totaltime"></span></h2>
+<h1><span class="en">runned times</span> <span class="es">tiempos corridos </span></h1>
+<div id="runnedtimes"></div>
+<h1><span class="en">this week</span> <span class="es">este semana</span></h1>
+<div id="thisweek"></div>
+<h1><span class="en">weekly overviews</span> <span class="es">sobrevistas por semana</span></h1>
+<div id="weekoverview"></div>
+<script type="text/javascript" src="config.js"></script>
+</body>
+</html>
