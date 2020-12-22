@@ -13,7 +13,7 @@ basepath = os.path.dirname(os.path.abspath(__file__))+"/"
 storagefile = basepath + "database.js"
 runnedtimesincestart = 0
 starttime = 0
-buttontextlist = ['start/stop','time since start','open overview in browser','quit','run open-script']
+buttontextlist = ['start/stop','time since start','open overview in browser','quit','run open-script', 'open config', 'open current database in texteditor']
 language = "en"
 
 def main():
@@ -27,9 +27,9 @@ def main():
       lines = reader.readlines()
       for line in lines:
         if "language" in line:
-          if "es" in line:
+          if '"es",' in line:
             print('switch to spanish')
-            buttontextlist = ['aranca/termina','tiempo corrido actual','abre sobrevista en navegador','quit', 'ejecute script de inicio']
+            buttontextlist = ['aranca/termina','tiempo corrido actual','abre sobrevista en navegador','quit', 'ejecute script de inicio', 'abre config.js', 'abre base de datos para editar directo']
             language = "es"
         if "name:" in line:
           storagefilename = line.split('"')[1]
@@ -54,6 +54,11 @@ def build_menu():
     item_quit.connect('activate', quit)
     item_openall = gtk.MenuItem(buttontextlist[4])
     item_openall.connect('activate',openall)
+    item_openconfig = gtk.MenuItem(buttontextlist[5])
+    item_openconfig.connect('activate',openconfig)
+    item_opendatabase = gtk.MenuItem(buttontextlist[6])
+    item_opendatabase.connect('activate',open_database)
+
     item_openoverview = gtk.MenuItem(buttontextlist[2])
     item_openoverview.connect('activate',open_overview)
     item_runtime = gtk.MenuItem(buttontextlist[1])
@@ -62,6 +67,8 @@ def build_menu():
     menu.append(item_runtime)
 #    menu.append(item_openall)
     menu.append(item_openoverview)
+    menu.append(item_openconfig)
+    menu.append(item_opendatabase)
     menu.append(item_quit)
     menu.show_all()
     return menu
@@ -104,6 +111,14 @@ def showrunningtime(_):
 def open_overview(_):
     global basepath
     os.system("xdg-open "+basepath+"timetracker.html")
+
+def open_database(_):
+        global storagefile
+        os.system("xdg-open '"+storagefile+"'")
+
+def openconfig(_):
+    global basepath
+    os.system("xdg-open "+basepath+"config.js")
 
 def running_time():
     global runnedtimesincestart
