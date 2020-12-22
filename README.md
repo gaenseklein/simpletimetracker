@@ -35,10 +35,10 @@ there you can:
 
 ## how it works
 
-![running in icontray]("preview/running.png")
+![running in icontray](preview/running.png)
 the script runs and adds start- and end-times to the textarchive with the ending '.js' (for example myproject.js) - so please do not call it "config" ;)
 (even though it still should work fine, it just blows up your config.js)
-![open dialog]("preview/dialog.png")
+![open dialog](preview/dialog.png)
 
 you can open the overview from the app and it opens "timetracker.html" in your standard navigator. there a javascript does its magic and presents you an overview.
 ![overview](preview/overview.png)
